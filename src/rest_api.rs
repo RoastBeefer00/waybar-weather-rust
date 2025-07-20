@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use serde::{Deserialize, Serialize};
 use crate::codes::*;
 use reqwest::*;
@@ -202,21 +203,24 @@ pub struct WeatherIconUrl2 {
     pub value: String,
 }
 
-pub async fn get_weather_code() {
+pub async fn get_weather_code() -> Result<()> {
     let client: Client = Client::new();
     let response = client
         .get("https://wttr.in/lascruces+nm?format=j1")
         .send()
-        .await
-        .unwrap();
-    let response_text = response.text().await.unwrap();
+        .await?;
+    let response_text = response.text().await?;
     let text = response_text.as_str();
-    let results: WeatherResponse = serde_json::from_str(&text).unwrap();
+    let results: WeatherResponse = match serde_json::from_str(text) {
+        Ok(data) => data,
+        Err(err) => return Err(anyhow!(err)),
+    };
 
-    let current_condition = results.current_condition.get(0).unwrap();
-    let weather_code = current_condition.weather_code.clone();
-    let feels_like_f = current_condition.feels_like_f.clone();
+    let current_condition = results.current_condition.first().ok_or(anyhow!("unable to get current_condition"))?;
+    let weather_code = &current_condition.weather_code;
+    let feels_like_f = &current_condition.feels_like_f;
     let weather_icon = get_weather_icon(weather_code.as_str());
 
     println!("{} {}°F", weather_icon, feels_like_f);
+    Ok(())
 }
